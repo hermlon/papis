@@ -10,6 +10,7 @@ from typing import (
 
 import papis
 import papis.config
+import papis.strings
 import papis.logging
 
 logger = papis.logging.get_logger(__name__)
@@ -160,7 +161,7 @@ def author_list_to_author(data: Dict[str, Any]) -> str:
         return ""
 
     separator = papis.config.getstring("multiple-authors-separator")
-    fmt = papis.config.getstring("multiple-authors-format")
+    fmt = papis.config.getformattedstring("multiple-authors-format")
 
     if separator is None or fmt is None:
         raise ValueError(
@@ -168,7 +169,8 @@ def author_list_to_author(data: Dict[str, Any]) -> str:
             "and 'multiple-authors-format' are not present in the configuration")
 
     return separator.join([
-        fmt.format(au=author) for author in data["author_list"]
+        papis.format.format(fmt, author, doc_key="au")
+        for author in data["author_list"]
         ])
 
 
@@ -277,6 +279,55 @@ def split_authors_name(authors: Union[str, List[str]],
         ])
 
     return author_list
+
+
+def process_set_tuples(doc: "Document",
+                       set_tuples: Sequence[Tuple[str, papis.strings.AnyString]],
+                       ) -> Dict[str, Any]:
+    """Process a list of key-value pairs that can depend on the document.
+
+    :arg doc: a document to use in processing the *set_tuples*.
+    :arg set_tuples: a list of ``(key, value)`` tuples, where the key can be in
+        the format ``key[.formatter]`` and the value can be a format string. If
+        no formatter is defined in the key, the default one from
+        :ref:`config-settings-formatter` is used.
+    """
+    if not set_tuples:
+        return {}
+
+    import papis.format
+    from papis.bibtex import ref_cleanup
+
+    default_formatter = papis.format.get_default_formatter()
+    result = {}
+    for key, value in set_tuples:
+        formatter = None
+        if isinstance(value, papis.strings.FormattedString):
+            formatter = value.formatter
+            value = value.value
+
+        if "." in key:
+            key, formatter = key.split(".")
+
+        if formatter is None:
+            formatter = default_formatter
+
+        try:
+            value = papis.strings.FormattedString(formatter, value)
+            tmp = papis.format.format(value, doc)
+        except papis.format.FormatFailedError as exc:
+            logger.error("Could not format '%s' with value '%s'.",
+                         key, value, exc_info=exc)
+            continue
+
+        if key == "notes":
+            tmp = papis.utils.clean_document_name(tmp)
+        elif key == "ref":
+            tmp = ref_cleanup(tmp)
+
+        result[key] = tmp
+
+    return result
 
 
 class DocHtmlEscaped(Dict[str, Any]):
@@ -528,7 +579,7 @@ def describe(document: Union[Document, Dict[str, Any]]) -> str:
         :ref:`config-settings-document-description-format`.
     """
     return papis.format.format(
-        papis.config.getstring("document-description-format"),
+        papis.config.getformattedstring("document-description-format"),
         document, default=document.get("title", str(document)))
 
 

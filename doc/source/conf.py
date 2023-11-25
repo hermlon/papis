@@ -90,11 +90,13 @@ class PapisConfig(Directive):
         lines.append("`{key} <#config-{section}-{key}>`__"
                      .format(section=section, key=key))
 
-        if "\n" in str(default):
+        default_s = str(default)
+        if "\n" in default_s:
             lines.append("    - **Default**: ")
             lines.append("        .. code::")
             lines.append("")
-            for lindef in default.split("\n"):
+
+            for lindef in default_s.split("\n"):
                 lines.append(3 * "    " + lindef)
         else:
             lines.append("    - **Default**: ``{value!r}``"

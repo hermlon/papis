@@ -107,10 +107,9 @@ def run(document: papis.document.Document,
               multiple=True,
               default=(),)
 @click.option("-s", "--set", "set_tuples",
-              help="Update document's information with key value. "
-                   "The value can be a papis format.",
+              help="Update a document with key value pairs",
               multiple=True,
-              type=(str, str),)
+              type=(str, papis.cli.FormattedStringParamType()))
 @papis.cli.bool_flag("-b", "--batch",
                      help="Batch mode, do not prompt or otherwise")
 def cli(query: str,
@@ -123,7 +122,7 @@ def cli(query: str,
         _all: bool,
         sort_field: Optional[str],
         sort_reverse: bool,
-        set_tuples: List[Tuple[str, str]],) -> None:
+        set_tuples: List[Tuple[str, papis.strings.FormattedString]],) -> None:
     """Update a document from a given library."""
 
     documents = papis.cli.handle_doc_folder_query_all_sort(query,
@@ -138,26 +137,10 @@ def cli(query: str,
     for document in documents:
         ctx = papis.importer.Context()
 
-        logger.info("Updating {c.Back.WHITE}{c.Fore.BLACK}%s{c.Style.RESET_ALL}.",
-                    papis.document.describe(document))
+        logger.info("Updating %s.", papis.document.describe(document))
 
         ctx.data.update(document)
-        if set_tuples:
-            processed_tuples = {}
-            for key, value in set_tuples:
-                try:
-                    value = papis.format.format(value, document)
-                except papis.format.FormatFailedError as exc:
-                    logger.error("Could not format '%s' with value '%s'.",
-                                 key, value, exc_info=exc)
-                    continue
-
-                if key == "notes":
-                    value = papis.utils.clean_document_name(value)
-                    processed_tuples[key] = value
-                else:
-                    processed_tuples[key] = value
-            ctx.data.update(processed_tuples)
+        ctx.data.update(papis.document.process_set_tuples(document, set_tuples))
 
         # NOTE: use 'papis addto' to add files, so this only adds data
         matching_importers = papis.utils.get_matching_importer_by_name(
