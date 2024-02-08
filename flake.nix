@@ -61,6 +61,7 @@
           tqdm
           whoosh
           arxivpy
+					jinja2
         ];
       develop_py_deps = with pypkgs; [
         pip
